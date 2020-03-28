@@ -1,0 +1,756 @@
+openapi: 3.0.0
+info:
+  title: Snyk SCM Agents API
+  version: '1.0'
+  contact:
+    name: Team Comet
+  description: |-
+    SCM Agents API.
+
+    This document describes Snyk's SCM Agents API.
+servers:
+  - url: 'http://github-agent'
+    description: GitHub agent
+  - url: 'http://ghe-agent'
+    description: GitHub Enterprise agent
+  - url: 'http://gitlab-agent'
+    description: Gitlab agent
+  - url: 'http://bitbucket-server-agent'
+    description: Bitbucket Server agent
+  - url: 'http://bitbucket-cloud-agent'
+    description: Bitbucket Cloud agent
+  - url: 'http://aws-lambda-agent'
+    description: AWS Lambda agent
+  - url: 'http://azure-functions-agent'
+    description: Azure functions agent
+  - url: 'http://azure-repos-agent'
+    description: Azure Repos agent
+paths:
+  /hooks:
+    post:
+      summary: Create webhook
+      operationId: post-hooks
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target:
+                    type: object
+                    properties:
+                      owner:
+                        type: string
+                      name:
+                        type: string
+                  webhookId:
+                    type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: object
+                  properties:
+                    owner:
+                      type: string
+                    name:
+                      type: string
+                webhookToken:
+                  type: string
+                webhookId:
+                  type: number
+      description: Create webhook on a target
+      tags:
+        - Webhooks
+    delete:
+      summary: Delete webhook
+      operationId: delete-hooks
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                  meta:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+      description: Deletes a specified webhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: object
+                  properties:
+                    owner:
+                      type: string
+                    name:
+                      type: string
+                hookId:
+                  type: number
+      tags:
+        - Webhooks
+  /app:
+    post:
+      summary: Get repository metadata
+      operationId: post-app
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target:
+                    type: object
+                    properties:
+                      id:
+                        type: number
+                      owner:
+                        type: string
+                      name:
+                        type: string
+                      branch:
+                        type: string
+                  targetMeta:
+                    type: object
+                    properties:
+                      isPrivate:
+                        type: boolean
+                      isAdmin:
+                        type: boolean
+      description: Returns a repo metadata
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                owner:
+                  type: string
+                name:
+                  type: string
+              required:
+                - owner
+                - name
+      tags:
+        - Repositories
+  /pull-request:
+    get:
+      summary: Get Pull Request details
+      tags:
+        - Pull Requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pull-Request'
+              examples: {}
+      operationId: get-pull-request
+      description: Get Pull request details
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: owner
+          required: true
+        - schema:
+            type: string
+          in: query
+          name: name
+          required: true
+        - schema:
+            type: number
+          in: query
+          name: pullNumber
+          required: true
+  /merge-sha:
+    get:
+      summary: Get merge sha
+      tags:
+        - Pull Requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mergeSha:
+                    type: string
+                    example: 1b020a123c9561048c62a40f2d25631d22b4ec36
+                  hasMergeConflict:
+                    type: boolean
+              examples: {}
+        '404':
+          description: Not Found
+      operationId: get-merge-sha
+      description: Fetches mergeSha for a given Pull Request ID
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: target
+          description: Base64 encoded JSON with target - owner and name
+        - schema:
+            type: number
+          in: query
+          name: pullNumber
+          description: ''
+  '/contributors/{target}':
+    parameters:
+      - schema:
+          type: string
+        name: target
+        in: path
+        required: true
+        description: Base64 encoded JSON with target - owner and name
+    get:
+      summary: Get contributors
+      tags:
+        - Contributors
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      example: ghe@snyk.io
+                    lastCommitDate:
+                      type: string
+                      format: date-time
+                      example: '2019-08-14T11:40:22.000Z'
+      operationId: get-contributors-target
+      parameters:
+        - schema:
+            type: string
+            format: date
+          in: query
+          name: since
+          description: Parameter is mandatory and has to contain a valid date format
+          required: true
+      description: Get contributing developers for specified target
+  '/resolve-to-revision/{target}':
+    parameters:
+      - schema:
+          type: string
+        name: target
+        in: path
+        required: true
+        description: 'Base64 encoded JSON with target - owner, name and optional branch (uses master as default)'
+    get:
+      summary: Resolve target to sha
+      tags:
+        - Repositories
+        - Pull Requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sha:
+                    type: string
+                required:
+                  - sha
+        '404':
+          description: "Not Found - couldn't resolve target's sha"
+      operationId: get-resolve-to-revision-target
+      description: 'Resolves target, without sha, to a sha (HEAD of branch)'
+  /search:
+    get:
+      summary: Search for a repository
+      tags:
+        - Repositories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  filteredTopLevelEntities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+        '401':
+          description: Unauthorized
+      operationId: get-search
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: q
+          description: Search query
+          required: true
+      description: Search for entities
+  '/file-content/{target}/{path}':
+    parameters:
+      - schema:
+          type: string
+        name: target
+        in: path
+        required: true
+        description: 'Base64 encoded JSON object with name, owner, sha, branch'
+      - schema:
+          type: string
+        name: path
+        in: path
+        required: true
+        description: Base64 encoded path
+    get:
+      summary: Get file content
+      tags:
+        - Repositories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Base64 encoded file content
+        '404':
+          description: Not Found - file might be too big
+      operationId: get-file-content-target-path
+      description: Get file content - replies
+  '/list/{repoOwner}':
+    get:
+      summary: List repositories for a specific owner
+      tags:
+        - Repositories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                description: List of importable entities
+                items:
+                  $ref: '#/components/schemas/Project'
+              examples: {}
+      operationId: 'get-list-:repoOwner'
+      description: Get list of repositories for a specific owner
+    parameters:
+      - schema:
+          type: string
+          example: snyk
+        name: repoOwner
+        in: path
+        required: true
+        description: Repo owner
+  /list:
+    get:
+      summary: Get listable entities
+      tags:
+        - Repositories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                description: List of listable entities
+                items:
+                  type: object
+                  description: ''
+                  properties:
+                    owner:
+                      type: string
+                    key:
+                      type: string
+                    name:
+                      type: string
+              examples: {}
+      operationId: get-list
+      description: 'Returns all top-level, listable entities the user has access to (in GitHub it would be the orgs)'
+  /validate-credentials:
+    get:
+      summary: Validate credentials
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+      operationId: get-validate-credentials
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: target
+          description: Target for which to validate the credentials for - needs to be a Base64 encoded JSON object
+        - schema:
+            type: string
+            enum:
+              - READ
+              - PUSH
+              - WEBHOOKS
+            default: READ
+            example: PUSH
+          in: query
+          name: permission
+          description: Permissions required
+      description: Validate passed credentials for SCM
+  /commit-status:
+    post:
+      summary: Create a commit status
+      operationId: post-commit-status
+      responses:
+        '200':
+          description: OK
+      description: Creates a commit status on specified target
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state:
+                  type: string
+                  enum:
+                    - processing
+                    - success
+                    - failure
+                    - error
+                    - canceled
+                  example: processing
+                context:
+                  type: string
+                targetUrl:
+                  type: string
+                description:
+                  type: string
+                target:
+                  type: object
+                  properties:
+                    owner:
+                      type: string
+                    name:
+                      type: string
+                    sha:
+                      type: string
+              required:
+                - state
+      tags:
+        - Commit status
+  /find-globs:
+    get:
+      summary: Search files in repository
+      tags:
+        - Repositories
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paths:
+                    type: array
+                    items:
+                      type: string
+                  truncated:
+                    type: boolean
+                required:
+                  - paths
+      operationId: get-find-globs
+      description: Searches files in target repository using glob patterns
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: object
+                  required:
+                    - owner
+                    - name
+                  properties:
+                    owner:
+                      type: string
+                    name:
+                      type: string
+                    branch:
+                      type: string
+                    sha:
+                      type: string
+                searchPath:
+                  type: string
+                globs:
+                  type: array
+                  items:
+                    type: string
+                exclusionGlobs:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - target
+      parameters:
+        - schema:
+            type: boolean
+          in: query
+          name: recursive
+          description: 'Whether to use recursive search, instead of search limited to n-level depth'
+  /find-pull-requests:
+    post:
+      summary: Find Pull Requests
+      operationId: post-find-pull-requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prResults:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        body:
+                          type: string
+                        url:
+                          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: object
+                  properties:
+                    owner:
+                      type: string
+                    name:
+                      type: string
+                state:
+                  type: string
+                  enum:
+                    - open
+                    - closed
+                    - merged
+                  example: open
+                branchPrefix:
+                  type: string
+                  default: snyk
+                limit:
+                  type: number
+                  default: 100
+      description: 'Finds Pull Requests on target, with specified prefix'
+      tags:
+        - Pull Requests
+  /fix:
+    post:
+      summary: Open a Pull Request
+      operationId: post-fix
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prCreator:
+                    type: string
+                  prUrl:
+                    type: string
+            application/xml:
+              schema:
+                type: object
+                properties:
+                  prUrl:
+                    type: string
+                  prCreator:
+                    type: string
+      tags:
+        - Pull Requests
+      description: Open a Pull Request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target:
+                  type: object
+                  properties:
+                    owner:
+                      type: string
+                    name:
+                      type: string
+                    branch:
+                      type: string
+                forkOwner:
+                  type: string
+                branchName:
+                  type: string
+                description:
+                  type: string
+                commitMessage:
+                  type: string
+                title:
+                  type: string
+                files:
+                  type: object
+                  properties:
+                    '<filename>':
+                      type: string
+  '/webhook/{scmType}/{webhookId}':
+    parameters:
+      - schema:
+          type: string
+          enum:
+            - github
+            - gitlab
+            - bitbucket-cloud
+            - bitbucket-server
+            - azure-repos
+        name: scmType
+        in: path
+        required: true
+        description: ''
+      - schema:
+          type: string
+          format: uuid
+        name: webhookId
+        in: path
+        required: true
+    get:
+      summary: Incoming webhooks
+      tags:
+        - Webhooks
+      responses:
+        '200':
+          description: OK
+      operationId: get-webhook-scmType-webhookId
+      description: Endpoint for incoming webhooks
+components:
+  schemas:
+    Pull-Request:
+      title: Pull Request model
+      type: object
+      properties:
+        mergeSha:
+          type: string
+        baseSha:
+          type: string
+        userLogin:
+          type: string
+        userId:
+          type: number
+        state:
+          type: string
+        mergeable:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        mergedAt:
+          type: string
+        closedAt:
+          type: string
+        assignee:
+          type: string
+        labels:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: number
+              node_id:
+                type: string
+              url:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              color:
+                type: string
+              default:
+                type: boolean
+        body:
+          type: string
+      description: ''
+    Project:
+      title: Project model
+      type: object
+      properties:
+        key:
+          type: string
+        owner:
+          type: string
+        name:
+          type: string
+        target:
+          type: object
+          properties:
+            name:
+              type: string
+        targetMeta:
+          type: object
+          properties:
+            isPrivate:
+              type: boolean
+            isFork:
+              type: boolean
+        id:
+          type: number
+      required:
+        - key
+        - owner
+        - name
+        - target
+        - targetMeta
+      description: ''
+  securitySchemes:
+    Credentials header:
+      name: snyk-source-credentials
+      type: apiKey
+      in: header
+      description: 'Base64 encoded JSON object with credentials. Includes these keys: url, brokered, token, scope'
+security:
+  - Credentials header: []
+tags: []
